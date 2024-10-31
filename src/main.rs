@@ -11,6 +11,10 @@ enum RegexClass {
 enum RegexElement {
     Literal(char),
     Class(RegexClass),
+    CharGroup {
+        is_positive: bool,
+        options: Vec<char>,
+    },
 }
 
 impl RegexElement {
@@ -22,6 +26,18 @@ impl RegexElement {
                 Some(c) => bail!("Unknown escape sequence: \\{c}"),
                 None => bail!("Expected character after '\\'"),
             },
+            // FIXME: should fail if we reach the end of the string without closing ']'
+            // FIXME: handle escape sequences inside char groups
+            Some('[') => {
+                let mut chars = chars.peekable();
+
+                let is_positive = chars.next_if_eq(&'^').is_none();
+
+                RegexElement::CharGroup {
+                    is_positive,
+                    options: chars.take_while(|c| c != &']').collect(),
+                }
+            }
             Some(c) => RegexElement::Literal(c),
             None => return Ok(None),
         };
@@ -36,6 +52,12 @@ impl RegexElement {
             RegexElement::Class(RegexClass::Alphanumeric) => iter
                 .next()
                 .map_or(false, |c| c.is_ascii_alphanumeric() || c == '_'),
+            RegexElement::CharGroup {
+                is_positive,
+                options,
+            } => iter
+                .next()
+                .map_or(false, |c| options.contains(&c) == *is_positive),
         }
     }
 }
