@@ -15,6 +15,8 @@ enum RegexElement {
         is_positive: bool,
         options: Vec<char>,
     },
+    StartAnchor,
+    EndAnchor,
 }
 
 impl RegexElement {
@@ -38,6 +40,8 @@ impl RegexElement {
                     options: chars.take_while(|c| c != &']').collect(),
                 }
             }
+            Some('^') => RegexElement::StartAnchor,
+            Some('$') => RegexElement::EndAnchor,
             Some(c) => RegexElement::Literal(c),
             None => return Ok(None),
         };
@@ -47,6 +51,9 @@ impl RegexElement {
 
     fn matches<T: Iterator<Item = char>>(&self, mut iter: T) -> bool {
         match self {
+            // start anchors are actually handled in the regex matching loop
+            RegexElement::StartAnchor => false,
+            RegexElement::EndAnchor => iter.next().is_none(),
             RegexElement::Literal(c) => iter.next() == Some(*c),
             RegexElement::Class(RegexClass::Digit) => iter.next().map_or(false, |c| c.is_digit(10)),
             RegexElement::Class(RegexClass::Alphanumeric) => iter
@@ -71,9 +78,14 @@ impl Regex {
 
         let first_element = self.0.first().expect("Empty regex");
 
-        while !first_element.matches(&mut chars) {
-            if chars.next().is_none() {
-                return false;
+        match first_element {
+            &RegexElement::StartAnchor => {}
+            first_element => {
+                while !first_element.matches(&mut chars) {
+                    if chars.next().is_none() {
+                        return false;
+                    }
+                }
             }
         }
 
