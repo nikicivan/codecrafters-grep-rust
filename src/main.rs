@@ -4,6 +4,7 @@ use std::{env, io, iter, process, str::FromStr};
 #[derive(Debug)]
 enum RegexClass {
     Digit,
+    Alphanumeric,
 }
 
 #[derive(Debug)]
@@ -13,12 +14,11 @@ enum RegexElement {
 }
 
 impl RegexElement {
-    fn read<T: IntoIterator<Item = char>>(iter: T) -> Result<Option<Self>> {
-        let mut chars = iter.into_iter();
-
+    fn read<T: Iterator<Item = char>>(mut chars: T) -> Result<Option<Self>> {
         let result = match chars.next() {
             Some('\\') => match chars.next() {
                 Some('d') => RegexElement::Class(RegexClass::Digit),
+                Some('w') => RegexElement::Class(RegexClass::Alphanumeric),
                 Some(c) => bail!("Unknown escape sequence: \\{c}"),
                 None => bail!("Expected character after '\\'"),
             },
@@ -29,12 +29,13 @@ impl RegexElement {
         Ok(Some(result))
     }
 
-    fn matches<T: IntoIterator<Item = char>>(&self, iter: T) -> bool {
+    fn matches<T: Iterator<Item = char>>(&self, mut iter: T) -> bool {
         match self {
-            RegexElement::Literal(c) => iter.into_iter().next() == Some(*c),
-            RegexElement::Class(RegexClass::Digit) => {
-                iter.into_iter().next().map_or(false, |c| c.is_digit(10))
-            }
+            RegexElement::Literal(c) => iter.next() == Some(*c),
+            RegexElement::Class(RegexClass::Digit) => iter.next().map_or(false, |c| c.is_digit(10)),
+            RegexElement::Class(RegexClass::Alphanumeric) => iter
+                .next()
+                .map_or(false, |c| c.is_ascii_alphanumeric() || c == '_'),
         }
     }
 }
